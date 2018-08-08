@@ -1,0 +1,30 @@
+# configmap.yaml
+{{- if .Values.nginx.https }}
+data:
+  # These files will be mounted in the configmap volume
+  https.cert: {{ .Values.nginx.cert | quote }}
+  https.key: {{ .Values.nginx.key | quote }}
+  nginx.conf: |-
+    # nginx.conf
+    server {
+        listen              80;
+        listen              443 ssl;
+        server_name         {{ .Values.nginx.serverName }};
+        ssl_certificate     certs/https.cert;
+        ssl_certificate_key certs/https.key;
+        ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
+        ssl_ciphers         HIGH:!aNULL:!MD5;
+
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+        }
+
+    }
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+  namespace: default
+---
+
+{{- end }}

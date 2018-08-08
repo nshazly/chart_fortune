@@ -1,0 +1,105 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "fortune.fullname" . }}
+  labels:
+    app: {{ template "fortune.name" . }}
+    chart: {{ template "fortune.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    chartVersion: {{ .Chart.Version }}
+    appVersion: {{ .Chart.AppVersion}}
+    {{ if .Values.environment }}
+    env: {{ default "none" .Values.environment }}
+    {{ end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "fortune.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "fortune.name" . }}
+        release: {{ .Release.Name }}
+        {{ if .Values.environment }}
+        env: {{ default "none" .Values.environment }}
+        {{ end }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: SLEEP_TIME
+          value: {{ .Values.sleepTime | default 10 | quote }}
+        - name: VERSION
+          value: {{ .Chart.Version | quote }}
+        volumeMounts:
+        - name: html
+          mountPath: /var/htdocs
+      - image: nginx:alpine
+        name: web-server
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        {{ if .Values.nginx.https }}
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        {{ end }}
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+          readOnly: true
+        {{ if .Values.nginx.https }}
+        - name: config
+          mountPath: /etc/nginx/conf.d/
+          readOnly: true
+        - name: certs
+          mountPath: /etc/nginx/certs/
+          readOnly: true
+        {{ end }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+      volumes:
+      - name: html
+        emptyDir: {}
+      {{ if .Values.nginx.https }}
+      - name: config
+        configMap:
+          name: {{ .Chart.Name }}-config
+          items:
+          - key: nginx.conf
+            path: nginx-ssl.conf
+      - name: certs
+        configMap:
+          name: {{ .Chart.Name }}-config
+          items:
+          - key: https.key
+            path: https.key
+          - key: https.cert
+            path: https.cert
+      {{ end }}
+      resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
